@@ -33,6 +33,8 @@ type Config struct {
 	// The order of servers in the client config is significant, so use array
 	// instead of map to preserve the order.
 	ServerPassword [][]string `json:"server_password"`
+
+	Proxy string `json:"proxy"` //http://user:passwod@localhost:1080 socks5://localhost:1080
 }
 
 var readTimeout time.Duration

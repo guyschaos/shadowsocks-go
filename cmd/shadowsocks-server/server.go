@@ -127,7 +127,17 @@ func handleConnection(conn *ss.Conn) {
 		return
 	}
 	debug.Println("connecting", host)
-	remote, err := net.Dial("tcp", host)
+
+	var d net.Dialer
+	var remote net.Conn
+
+	if config.Proxy != "" {
+		s, _ := ss.SOCKS5("tcp", "localhost:8889", nil, d)
+		remote, err = s.Dial("tcp", host)
+	} else {
+		remote, err = d.Dial("tcp", host)
+	}
+
 	if err != nil {
 		if ne, ok := err.(*net.OpError); ok && (ne.Err == syscall.EMFILE || ne.Err == syscall.ENFILE) {
 			// log too many open file error
@@ -325,6 +335,7 @@ func main() {
 	flag.StringVar(&cmdConfig.Method, "m", "", "encryption method, use empty string or rc4")
 	flag.IntVar(&core, "core", 0, "maximum number of CPU cores to use, default is determinied by Go runtime")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
+	flag.StringVar(&cmdConfig.Proxy, "r", "", "enable proxy for destination (socks5://localhost:1080)")
 
 	flag.Parse()
 
