@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
@@ -132,8 +133,20 @@ func handleConnection(conn *ss.Conn) {
 	var remote net.Conn
 
 	if config.Proxy != "" {
-		s, _ := ss.SOCKS5("tcp", "localhost:8889", nil, d)
-		remote, err = s.Dial("tcp", host)
+		url1, _ := url.Parse(config.Proxy)
+		var auth *ss.Auth
+		if url1.User != nil {
+			auth = &ss.Auth{}
+			auth.User = url1.User.Username()
+			auth.Password, _ = url1.User.Password()
+		}
+		if "socks5" == url1.Scheme {
+			s, _ := ss.SOCKS5("tcp", url1.Host, auth, d)
+			remote, err = s.Dial("tcp", host)
+		} else if "http" == url1.Scheme { // http proxy
+			s, _ := ss.HTTP_PROXY("tcp", url1.Host, auth, d)
+			remote, err = s.Dial("tcp", host)
+		}
 	} else {
 		remote, err = d.Dial("tcp", host)
 	}
