@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
@@ -129,34 +128,7 @@ func handleConnection(conn *ss.Conn) {
 	}
 	debug.Println("connecting", host)
 
-	var d net.Dialer
-	var remote net.Conn
-
-	if config.ServerParentProxy != "" {
-		url1, _ := url.Parse(config.ServerParentProxy)
-		var auth *ss.Auth
-		if url1.User != nil {
-			auth = &ss.Auth{}
-			auth.User = url1.User.Username()
-			auth.Password, _ = url1.User.Password()
-		}
-		switch url1.Scheme {
-		case "socks5":
-			s, _ := ss.SOCKS5("tcp", url1.Host, auth, d)
-			remote, err = s.Dial("tcp", host)
-		case "http":
-			s, _ := ss.HTTP_PROXY("tcp", url1.Host, auth, d)
-			remote, err = s.Dial("tcp", host)
-		case "shadowsocks":
-			cipher, _ := ss.NewCipher(auth.User, auth.Password)
-			remote, err = ss.Dial(host, url1.Host, cipher)
-		default:
-			log.Println("unknown parent proxy type:", url1.Scheme)
-			return
-		}
-	} else {
-		remote, err = d.Dial("tcp", host)
-	}
+	remote, err := parentProxy.Dial("tcp", host)
 
 	if err != nil {
 		if ne, ok := err.(*net.OpError); ok && (ne.Err == syscall.EMFILE || ne.Err == syscall.ENFILE) {
@@ -339,6 +311,7 @@ func unifyPortPassword(config *ss.Config) (err error) {
 
 var configFile string
 var config *ss.Config
+var parentProxy ss.ParentProxy
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -381,6 +354,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+
+	parentProxy, err = ss.CreateParentProxy(config.ServerParentProxy)
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 	if err = unifyPortPassword(config); err != nil {
 		os.Exit(1)
 	}
