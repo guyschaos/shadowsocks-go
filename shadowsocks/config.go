@@ -34,7 +34,7 @@ type Config struct {
 	// instead of map to preserve the order.
 	ServerPassword [][]string `json:"server_password"`
 
-	Proxy string `json:"proxy"` //http://user:passwod@localhost:1080 socks5://localhost:1080
+	ServerParentProxy string `json:"server_parent_proxy"` //http://user:password@localhost:1080 , socks5://localhost:1080, shadowsocks://:password@localhost:3800
 }
 
 var readTimeout time.Duration

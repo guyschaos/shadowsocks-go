@@ -132,20 +132,27 @@ func handleConnection(conn *ss.Conn) {
 	var d net.Dialer
 	var remote net.Conn
 
-	if config.Proxy != "" {
-		url1, _ := url.Parse(config.Proxy)
+	if config.ServerParentProxy != "" {
+		url1, _ := url.Parse(config.ServerParentProxy)
 		var auth *ss.Auth
 		if url1.User != nil {
 			auth = &ss.Auth{}
 			auth.User = url1.User.Username()
 			auth.Password, _ = url1.User.Password()
 		}
-		if "socks5" == url1.Scheme {
+		switch url1.Scheme {
+		case "socks5":
 			s, _ := ss.SOCKS5("tcp", url1.Host, auth, d)
 			remote, err = s.Dial("tcp", host)
-		} else if "http" == url1.Scheme { // http proxy
+		case "http":
 			s, _ := ss.HTTP_PROXY("tcp", url1.Host, auth, d)
 			remote, err = s.Dial("tcp", host)
+		case "shadowsocks":
+			cipher, _ := ss.NewCipher(auth.User, auth.Password)
+			remote, err = ss.Dial(host, url1.Host, cipher)
+		default:
+			log.Println("unknown parent proxy type:", url1.Scheme)
+			return
 		}
 	} else {
 		remote, err = d.Dial("tcp", host)
@@ -348,7 +355,7 @@ func main() {
 	flag.StringVar(&cmdConfig.Method, "m", "", "encryption method, use empty string or rc4")
 	flag.IntVar(&core, "core", 0, "maximum number of CPU cores to use, default is determinied by Go runtime")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
-	flag.StringVar(&cmdConfig.Proxy, "r", "", "enable proxy for destination (socks5://localhost:1080)")
+	flag.StringVar(&cmdConfig.ServerParentProxy, "r", "", "enable proxy for destination (socks5://localhost:1080, shadowsocks://method:password@localhost:8388)")
 
 	flag.Parse()
 
