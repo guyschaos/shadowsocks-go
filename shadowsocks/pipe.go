@@ -2,14 +2,8 @@ package shadowsocks
 
 import (
 	// "io"
-	"github.com/cyfdecyf/leakybuf"
 	"net"
 	"time"
-)
-
-const (
-	NO_TIMEOUT = iota
-	SET_TIMEOUT
 )
 
 func SetReadTimeout(c net.Conn) {
@@ -18,25 +12,19 @@ func SetReadTimeout(c net.Conn) {
 	}
 }
 
-const bufSize = 4096
-const nBuf = 2048
-
-var pipeBuf = leakybuf.NewLeakyBuf(nBuf, bufSize)
-
 // PipeThenClose copies data from src to dst, closes dst when done.
-func PipeThenClose(src, dst net.Conn, timeoutOpt int) {
+func PipeThenClose(src, dst net.Conn) {
 	defer dst.Close()
-	buf := pipeBuf.Get()
-	defer pipeBuf.Put(buf)
+	buf := leakyBuf.Get()
+	defer leakyBuf.Put(buf)
 	for {
-		if timeoutOpt == SET_TIMEOUT {
-			SetReadTimeout(src)
-		}
+		SetReadTimeout(src)
 		n, err := src.Read(buf)
 		// read may return EOF with n > 0
 		// should always process n > 0 bytes before handling error
 		if n > 0 {
-			if _, err = dst.Write(buf[0:n]); err != nil {
+			// Note: avoid overwrite err returned by Read.
+			if _, err := dst.Write(buf[0:n]); err != nil {
 				Debug.Println("write:", err)
 				break
 			}

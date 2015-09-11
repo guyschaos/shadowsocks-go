@@ -49,6 +49,7 @@ func handShake(conn net.Conn) (err error) {
 	buf := make([]byte, 258)
 
 	var n int
+	ss.SetReadTimeout(conn)
 	// make sure we get the nmethod field
 	if n, err = io.ReadAtLeast(conn, buf, idNmethod+1); err != nil {
 		return
@@ -92,6 +93,7 @@ func getRequest(conn net.Conn) (rawaddr []byte, host string, err error) {
 	// refer to getRequest in server.go for why set buffer size to 263
 	buf := make([]byte, 263)
 	var n int
+	ss.SetReadTimeout(conn)
 	// read till we get possible domain length field
 	if n, err = io.ReadAtLeast(conn, buf, idDmLen+1); err != nil {
 		return
@@ -314,18 +316,18 @@ func handleConnection(conn net.Conn) {
 		}
 	}()
 
-	go ss.PipeThenClose(conn, remote, ss.NO_TIMEOUT)
-	ss.PipeThenClose(remote, conn, ss.NO_TIMEOUT)
+	go ss.PipeThenClose(conn, remote)
+	ss.PipeThenClose(remote, conn)
 	closed = true
 	debug.Println("closed connection to", addr)
 }
 
-func run(port string) {
-	ln, err := net.Listen("tcp", ":"+port)
+func run(listenAddr string) {
+	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("starting local socks5 server at port %v ...\n", port)
+	log.Printf("starting local socks5 server at %v ...\n", listenAddr)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -344,17 +346,19 @@ func enoughOptions(config *ss.Config) bool {
 func main() {
 	log.SetOutput(os.Stdout)
 
-	var configFile, cmdServer string
+	var configFile, cmdServer, cmdLocal string
 	var cmdConfig ss.Config
 	var printVer bool
 
 	flag.BoolVar(&printVer, "version", false, "print version")
 	flag.StringVar(&configFile, "c", "config.json", "specify config file")
 	flag.StringVar(&cmdServer, "s", "", "server address")
+	flag.StringVar(&cmdLocal, "b", "", "local address, listen only to this address if specified")
 	flag.StringVar(&cmdConfig.Password, "k", "", "password")
 	flag.IntVar(&cmdConfig.ServerPort, "p", 0, "server port")
+	flag.IntVar(&cmdConfig.Timeout, "t", 300, "timeout in seconds")
 	flag.IntVar(&cmdConfig.LocalPort, "l", 0, "local socks5 proxy port")
-	flag.StringVar(&cmdConfig.Method, "m", "", "encryption method, use empty string or rc4")
+	flag.StringVar(&cmdConfig.Method, "m", "", "encryption method, default: aes-256-cfb")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
 
 	flag.Parse()
@@ -387,7 +391,9 @@ func main() {
 	} else {
 		ss.UpdateConfig(config, &cmdConfig)
 	}
-
+	if config.Method == "" {
+		config.Method = "aes-256-cfb"
+	}
 	if len(config.ServerPassword) == 0 {
 		if !enoughOptions(config) {
 			fmt.Fprintln(os.Stderr, "must specify server address, password and both server/local port")
@@ -405,5 +411,5 @@ func main() {
 
 	parseServerConfig(config)
 
-	run(strconv.Itoa(config.LocalPort))
+	run(cmdLocal + ":" + strconv.Itoa(config.LocalPort))
 }

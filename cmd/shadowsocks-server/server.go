@@ -19,8 +19,6 @@ import (
 
 var debug ss.DebugLog
 
-const dnsGoroutineNum = 64
-
 func getRequest(conn *ss.Conn) (host string, extra []byte, err error) {
 	const (
 		idType  = 0 // address type index
@@ -57,12 +55,11 @@ func getRequest(conn *ss.Conn) (host string, extra []byte, err error) {
 	case typeDm:
 		reqLen = int(buf[idDmLen]) + lenDmBase
 	default:
-		err = errors.New(fmt.Sprintf("addr type %d not supported", buf[idType]))
+		err = fmt.Errorf("addr type %d not supported", buf[idType])
 		return
 	}
 
 	if n < reqLen { // rare case
-		ss.SetReadTimeout(conn)
 		if _, err = io.ReadFull(conn, buf[n:reqLen]); err != nil {
 			return
 		}
@@ -156,8 +153,8 @@ func handleConnection(conn *ss.Conn) {
 	if debug {
 		debug.Printf("piping %s<->%s", conn.RemoteAddr(), host)
 	}
-	go ss.PipeThenClose(conn, remote, ss.SET_TIMEOUT)
-	ss.PipeThenClose(remote, conn, ss.NO_TIMEOUT)
+	go ss.PipeThenClose(conn, remote)
+	ss.PipeThenClose(remote, conn)
 	closed = true
 	return
 }
@@ -263,7 +260,7 @@ func run(port, password string) {
 	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Printf("error listening port %v: %v\n", port, err)
-		return
+		os.Exit(1)
 	}
 	passwdManager.add(port, password, ln)
 	var cipher *ss.Cipher
@@ -324,8 +321,8 @@ func main() {
 	flag.StringVar(&configFile, "c", "config.json", "specify config file")
 	flag.StringVar(&cmdConfig.Password, "k", "", "password")
 	flag.IntVar(&cmdConfig.ServerPort, "p", 0, "server port")
-	flag.IntVar(&cmdConfig.Timeout, "t", 60, "connection timeout (in seconds)")
-	flag.StringVar(&cmdConfig.Method, "m", "", "encryption method, use empty string or rc4")
+	flag.IntVar(&cmdConfig.Timeout, "t", 300, "timeout in seconds")
+	flag.StringVar(&cmdConfig.Method, "m", "", "encryption method, default: aes-256-cfb")
 	flag.IntVar(&core, "core", 0, "maximum number of CPU cores to use, default is determinied by Go runtime")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
 	flag.StringVar(&cmdConfig.ServerParentProxy, "r", "", "enable proxy for destination (socks5://localhost:1080, shadowsocks://method:password@localhost:8388)")
@@ -349,6 +346,9 @@ func main() {
 		config = &cmdConfig
 	} else {
 		ss.UpdateConfig(config, &cmdConfig)
+	}
+	if config.Method == "" {
+		config.Method = "aes-256-cfb"
 	}
 	if err = ss.CheckCipherMethod(config.Method); err != nil {
 		fmt.Fprintln(os.Stderr, err)

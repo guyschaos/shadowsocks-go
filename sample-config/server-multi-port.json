@@ -3,6 +3,6 @@
 		"8387": "foobar",
 		"8388": "barfoo"
 	},
-	"timeout": 60,
-	"cache_enctable": true
+	"method": "aes-128-cfb",
+	"timeout": 600
 }

@@ -1,13 +1,12 @@
 language: go
+go:
+  - 1.4.2
 install:
-  - go get github.com/cyfdecyf/leakybuf
-  - go get code.google.com/p/go.crypto/blowfish
-  - go get code.google.com/p/go.crypto/cast5
-  - pushd $TRAVIS_BUILD_DIR
+  - go get golang.org/x/crypto/blowfish
+  - go get golang.org/x/crypto/cast5
+  - go get golang.org/x/crypto/salsa20
+  - go get github.com/codahale/chacha20
   - go install ./cmd/shadowsocks-local
   - go install ./cmd/shadowsocks-server
-  - popd
 script:
-  - pushd $TRAVIS_BUILD_DIR
   - PATH=$PATH:$HOME/gopath/bin bash -x ./script/test.sh
-  - popd
