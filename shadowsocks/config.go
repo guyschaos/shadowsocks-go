@@ -14,6 +14,7 @@ import (
 	// "log"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -23,6 +24,7 @@ type Config struct {
 	LocalPort  int         `json:"local_port"`
 	Password   string      `json:"password"`
 	Method     string      `json:"method"` // encryption method
+	Auth       bool        `json:"auth"`   // one time auth
 
 	// following options are only used by server
 	PortPassword map[string]string `json:"port_password"`
@@ -33,6 +35,8 @@ type Config struct {
 	// The order of servers in the client config is significant, so use array
 	// instead of map to preserve the order.
 	ServerPassword [][]string `json:"server_password"`
+
+	ServerParentProxy string `json:"server_parent_proxy"` //http://user:password@localhost:1080 , socks5://localhost:1080, shadowsocks://:password@localhost:3800
 }
 
 var readTimeout time.Duration
@@ -85,6 +89,10 @@ func ParseConfig(path string) (config *Config, err error) {
 		return nil, err
 	}
 	readTimeout = time.Duration(config.Timeout) * time.Second
+	if strings.HasSuffix(strings.ToLower(config.Method), "-auth") {
+		config.Method = config.Method[:len(config.Method)-5]
+		config.Auth = true
+	}
 	return
 }
 
@@ -123,9 +131,6 @@ func UpdateConfig(old, new *Config) {
 				oldField.SetInt(i)
 			}
 		}
-	}
-	if old.Method == "table" {
-		old.Method = ""
 	}
 
 	old.Timeout = new.Timeout
